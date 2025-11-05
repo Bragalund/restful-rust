@@ -1,6 +1,7 @@
 # RESTful Rust
 
-[![Build Status](https://travis-ci.org/blurbyte/restful-rust.svg?branch=master)](https://travis-ci.org/blurbyte/restful-rust)
+![Visualization of the codebase](./diagram.svg)
+[![Build and Fuzz Status](https://github.com/Bragalund/restful-rust/actions/workflows/build-and-fuzz.yml/badge.svg)](https://github.com/Bragalund/restful-rust/actions/workflows/build-and-fuzz.yml)
 
 **RESTful Rust** is straightforward REST API example written in Rust. It shows how to *implement* and *test* GET, POST, PUT and DELETE methods with amazing [Warp](https://crates.io/crates/warp) web server framework.
 

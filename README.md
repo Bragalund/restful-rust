@@ -1,6 +1,7 @@
 # RESTful Rust
 
 [![Build and Fuzz Status](https://github.com/Bragalund/restful-rust/actions/workflows/build-and-fuzz.yml/badge.svg)](https://github.com/Bragalund/restful-rust/actions/workflows/build-and-fuzz.yml)
+
 [![Coverage Status](https://github.com/Bragalund/restful-rust/actions/workflows/badge-generation.yml/badge.svg)](https://github.com/Bragalund/restful-rust/actions/workflows/badge-generation.yml)
 
 

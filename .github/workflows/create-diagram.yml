@@ -12,13 +12,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@main
 
       - name: Visualize repository
-        uses: githubocto/repo-visualizer@v0.9.0
+        uses: githubocto/repo-visualizer@v0.7.1
         with:
           output_file: diagram.svg
           branch: main
           excluded_paths: |
             target
             fuzz/target
+      - name: Get artifact
+        uses: actions/download-artifact@v2
+          with:
+        name: "diagram.svg"
+        path: "downloads"

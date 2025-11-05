@@ -1,11 +1,7 @@
 use std::env;
 use warp::Filter;
 
-mod custom_filters;
-mod handlers;
-mod routes;
-mod schema;
-mod validators;
+use restful_rust::{routes, schema};
 
 #[tokio::main]
 async fn main() {

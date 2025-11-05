@@ -22,8 +22,4 @@ jobs:
           excluded_paths: |
             target
             fuzz/target
-      - name: Get artifact
-        uses: actions/download-artifact@v2
-          with:
-        name: "diagram.svg"
-        path: "downloads"
+            

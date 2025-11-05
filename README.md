@@ -43,3 +43,11 @@ Just enter one of the available endpoints with appropriate HTTP method selected:
 And watch a console / terminal for detailed logs:
 
 <img src="https://user-images.githubusercontent.com/20565536/65247443-ae224b00-daf0-11e9-908c-e6fe02d574c9.png" alt="Terminal logs after each HTTP request" width="600">
+
+#### fuzz tests
+
+Fuzz the application
+
+```shell
+cargo fuzz run fuzz_target_1
+```

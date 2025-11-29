@@ -13,12 +13,12 @@ pub async fn list_games(options: ListOptions, db: Db) -> Result<impl Reply, Infa
     debug!("list all games");
 
     let games = db.lock().await;
-    let games: Vec<Game> = games
-        .clone()
-        .into_iter()
-        .skip(options.offset.unwrap_or(0))
-        .take(options.limit.unwrap_or(std::usize::MAX))
-        .collect();
+    let total = games.len();
+    let start = options.offset.unwrap_or(0).min(total);
+    let limit = options.limit.unwrap_or(std::usize::MAX);
+    let take = limit.min(total - start);
+    let end = start + take;
+    let games: Vec<Game> = games[start..end].to_vec();
 
     Ok(warp::reply::json(&games))
 }

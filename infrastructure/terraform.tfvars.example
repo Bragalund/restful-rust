@@ -1,0 +1,14 @@
+name_prefix          = "restfulrust"
+environment          = "dev"
+location             = "westeurope"
+plan_sku             = "EP1"
+acr_sku              = "Basic"
+container_image_name = "restful-rust"
+container_image_tag  = "latest"
+container_port       = "8080"
+
+tags = {
+  project = "restful-rust"
+  owner   = "engineering"
+}
+

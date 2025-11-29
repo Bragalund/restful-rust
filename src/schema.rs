@@ -1,16 +1,18 @@
 // Common types used across API
 
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use sqlx::migrate::MigrateDatabase;
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::SqlitePool;
+use std::str::FromStr;
 
 use crate::validators;
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct Game {
-    pub id: u64,
+    pub id: i64,
     pub title: String,
     #[serde(with = "validators::validate_game_rating")]
     pub rating: u8,
@@ -19,8 +21,9 @@ pub struct Game {
     pub release_date: NaiveDateTime,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, sqlx::Type)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[sqlx(type_name = "TEXT")]
 pub enum Genre {
     RolePlaying,
     Strategy,
@@ -33,46 +36,33 @@ pub struct ListOptions {
     pub limit: Option<usize>,
 }
 
-// For presentation purposes keep mocked data in in-memory structure
-// In real life scenario connection with regular database would be established
+pub type Db = SqlitePool;
 
-pub type Db = Arc<Mutex<Vec<Game>>>;
+pub async fn init_pool(database_url: &str) -> Result<Db, sqlx::Error> {
+    if !sqlx::Sqlite::database_exists(database_url).await? {
+        sqlx::Sqlite::create_database(database_url).await?;
+    }
 
-pub fn example_db() -> Db {
-    Arc::new(Mutex::new(
-        vec![
-        Game {
-            id: 1,
-            title: String::from("Dark Souls"),
-            rating: 91,
-            genre: Genre::RolePlaying,
-            description: Some(String::from("Takes place in the fictional kingdom of Lordran, where players assume the role of a cursed undead character who begins a pilgrimage to discover the fate of their kind.")),
-            release_date: NaiveDate::from_ymd(2011, 9, 22).and_hms(0, 0, 0),
-        },
-        Game {
-            id: 2,
-            title: String::from("Dark Souls 2"),
-            rating: 87,
-            genre: Genre::RolePlaying,
-            description: None,
-            release_date: NaiveDate::from_ymd(2014, 3, 11).and_hms(0, 0, 0),
-        },
-        Game {
-            id: 3,
-            title: String::from("Dark Souls 3"),
-            rating: 89,
-            genre: Genre::RolePlaying,
-            description: Some(String::from("The latest chapter in the series with its trademark sword and sorcery combat and rewarding action RPG gameplay.")),
-            release_date: NaiveDate::from_ymd(2016, 3, 24).and_hms(0, 0, 0),
-        },
-    ]
-    ))
+    let connect_options = SqliteConnectOptions::from_str(database_url)?
+        .create_if_missing(true)
+        .foreign_keys(true);
+
+    let pool = SqlitePoolOptions::new()
+        .max_connections(5)
+        .connect_with(connect_options)
+        .await?;
+
+    // Migrations embed into the binary so startup is deterministic.
+    sqlx::migrate!("./migrations").run(&pool).await?;
+
+    Ok(pool)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    use chrono::NaiveDate;
     use serde_json::error::Error;
     use serde_test::{assert_tokens, Token};
 
@@ -92,7 +82,7 @@ mod tests {
             &[
                 Token::Struct { name: "Game", len: 6 },
                 Token::String("id"),
-                Token::U64(1),
+                Token::I64(1),
                 Token::String("title"),
                 Token::String("Test"),
                 Token::String("rating"),

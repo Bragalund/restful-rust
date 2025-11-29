@@ -39,7 +39,7 @@ pub fn games_create(db: Db) -> impl Filter<Extract = impl Reply, Error = Rejecti
 
 // `PUT /games/:id`
 pub fn games_update(db: Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-    warp::path!("games" / u64)
+    warp::path!("games" / i64)
         .and(warp::put())
         .and(custom_filters::json_body())
         .and(custom_filters::with_db(db))
@@ -48,7 +48,7 @@ pub fn games_update(db: Db) -> impl Filter<Extract = impl Reply, Error = Rejecti
 
 // `DELETE /games/:id`
 pub fn games_delete(db: Db) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-    warp::path!("games" / u64)
+    warp::path!("games" / i64)
         .and(warp::delete())
         .and(custom_filters::with_db(db))
         .and_then(handlers::delete_game)
@@ -59,16 +59,53 @@ mod tests {
     use super::*;
 
     use chrono::prelude::*;
-    use std::sync::Arc;
-    use tokio::sync::Mutex;
+    use sqlx::sqlite::SqliteConnectOptions;
+    use sqlx::sqlite::SqlitePoolOptions;
+    use std::str::FromStr;
     use warp::http::StatusCode;
 
     use crate::schema::{Game, Genre};
 
-    // Mocked dataset for each test
+    async fn memory_db_with(games: Vec<Game>) -> Db {
+        let _ = pretty_env_logger::try_init();
 
-    fn mocked_db() -> Db {
-        Arc::new(Mutex::new(vec![
+        let options = SqliteConnectOptions::from_str("sqlite::memory:")
+            .unwrap()
+            .create_if_missing(true)
+            .shared_cache(true);
+
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(options)
+            .await
+            .unwrap();
+
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        sqlx::query("DELETE FROM games").execute(&pool).await.unwrap();
+
+        for game in games {
+            sqlx::query(
+                r#"
+                INSERT INTO games (id, title, rating, genre, description, release_date)
+                VALUES (?, ?, ?, ?, ?, ?)
+            "#,
+            )
+            .bind(game.id)
+            .bind(game.title)
+            .bind(game.rating)
+            .bind(game.genre)
+            .bind(game.description)
+            .bind(game.release_date)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+
+        pool
+    }
+
+    fn mocked_games() -> Vec<Game> {
+        vec![
             Game {
                 id: 1,
                 title: String::from("Crappy title"),
@@ -85,7 +122,7 @@ mod tests {
                 description: None,
                 release_date: NaiveDate::from_ymd(2014, 3, 11).and_hms(0, 0, 0),
             },
-        ]))
+        ]
     }
 
     fn mocked_game() -> Game {
@@ -101,7 +138,7 @@ mod tests {
 
     #[tokio::test]
     async fn get_list_of_games_200() {
-        let db = mocked_db();
+        let db = memory_db_with(mocked_games()).await;
         let filter = games_routes(db);
 
         let res = warp::test::request().method("GET").path("/games").reply(&filter).await;
@@ -114,7 +151,7 @@ mod tests {
 
     #[tokio::test]
     async fn get_list_of_games_with_options_200() {
-        let db = mocked_db();
+        let db = memory_db_with(mocked_games()).await;
         let filter = games_routes(db);
 
         let res = warp::test::request()
@@ -131,7 +168,7 @@ mod tests {
 
     #[tokio::test]
     async fn get_empty_list_with_offset_overshot_200() {
-        let db = mocked_db();
+        let db = memory_db_with(mocked_games()).await;
         let filter = games_routes(db);
 
         let res = warp::test::request()
@@ -148,7 +185,7 @@ mod tests {
 
     #[tokio::test]
     async fn get_incorrect_options_400() {
-        let db = mocked_db();
+        let db = memory_db_with(mocked_games()).await;
         let filter = games_routes(db);
 
         let res = warp::test::request()
@@ -162,7 +199,7 @@ mod tests {
 
     #[tokio::test]
     async fn get_wrong_path_405() {
-        let db = mocked_db();
+        let db = memory_db_with(mocked_games()).await;
         let filter = games_routes(db);
 
         let res = warp::test::request()
@@ -176,7 +213,7 @@ mod tests {
 
     #[tokio::test]
     async fn post_json_201() {
-        let db = mocked_db();
+        let db = memory_db_with(mocked_games()).await;
         let filter = games_routes(db.clone());
 
         let res = warp::test::request()
@@ -187,12 +224,16 @@ mod tests {
             .await;
 
         assert_eq!(res.status(), StatusCode::CREATED);
-        assert_eq!(db.lock().await.len(), 3);
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM games")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        assert_eq!(count, 3);
     }
 
     #[tokio::test]
     async fn post_too_long_content_413() {
-        let db = mocked_db();
+        let db = memory_db_with(mocked_games()).await;
         let filter = games_routes(db);
 
         let res = warp::test::request()
@@ -207,7 +248,7 @@ mod tests {
 
     #[tokio::test]
     async fn post_wrong_payload_400() {
-        let db = mocked_db();
+        let db = memory_db_with(mocked_games()).await;
         let filter = games_routes(db);
 
         let res = warp::test::request()
@@ -222,7 +263,7 @@ mod tests {
 
     #[tokio::test]
     async fn post_wrong_path_405() {
-        let db = mocked_db();
+        let db = memory_db_with(mocked_games()).await;
         let filter = games_routes(db);
 
         let res = warp::test::request()
@@ -236,7 +277,7 @@ mod tests {
 
     #[tokio::test]
     async fn put_json_200() {
-        let db = mocked_db();
+        let db = memory_db_with(mocked_games()).await;
         let filter = games_routes(db.clone());
 
         let res = warp::test::request()
@@ -248,14 +289,16 @@ mod tests {
 
         assert_eq!(res.status(), StatusCode::OK);
 
-        let db = db.lock().await;
-        let ref title = db[1].title;
+        let title: String = sqlx::query_scalar("SELECT title FROM games WHERE id = 2")
+            .fetch_one(&db)
+            .await
+            .unwrap();
         assert_eq!(title, "Another game");
     }
 
     #[tokio::test]
     async fn put_wrong_id_404() {
-        let db = mocked_db();
+        let db = memory_db_with(mocked_games()).await;
         let filter = games_routes(db);
 
         let res = warp::test::request()
@@ -270,7 +313,7 @@ mod tests {
 
     #[tokio::test]
     async fn put_wrong_payload_400() {
-        let db = mocked_db();
+        let db = memory_db_with(mocked_games()).await;
         let filter = games_routes(db);
 
         let res = warp::test::request()
@@ -286,7 +329,7 @@ mod tests {
 
     #[tokio::test]
     async fn put_too_long_content_413() {
-        let db = mocked_db();
+        let db = memory_db_with(mocked_games()).await;
         let filter = games_routes(db);
 
         let res = warp::test::request()
@@ -301,7 +344,7 @@ mod tests {
 
     #[tokio::test]
     async fn delete_wrong_id_404() {
-        let db = mocked_db();
+        let db = memory_db_with(mocked_games()).await;
         let filter = games_routes(db);
 
         let res = warp::test::request()
@@ -315,7 +358,7 @@ mod tests {
 
     #[tokio::test]
     async fn delete_game_204() {
-        let db = mocked_db();
+        let db = memory_db_with(mocked_games()).await;
         let filter = games_routes(db.clone());
 
         let res = warp::test::request()
@@ -325,6 +368,10 @@ mod tests {
             .await;
 
         assert_eq!(res.status(), StatusCode::NO_CONTENT);
-        assert_eq!(db.lock().await.len(), 1);
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM games")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        assert_eq!(count, 1);
     }
 }

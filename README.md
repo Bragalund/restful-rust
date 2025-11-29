@@ -16,6 +16,30 @@ To run the project locally:
 5. lint code with `cargo clippy` and format it with `cargo fmt`
 6. run `cargo build --release` command to generate single optimized binary
 
+### Deploy to Azure Functions (container)
+
+Prereqs: Azure CLI logged in (`az login`), Terraform `>=1.6`, and Docker.
+
+1. Build and tag the image (from repo root, after `terraform apply` outputs the registry name):
+   ```bash
+   docker build -t <acr_name>.azurecr.io/restful-rust:latest .
+   ```
+2. Push to ACR:
+   ```bash
+   az acr login --name <acr_name>
+   docker push <acr_name>.azurecr.io/restful-rust:latest
+   ```
+3. Provision Azure resources with Terraform:
+   ```bash
+   cd infrastructure
+   cp terraform.tfvars.example terraform.tfvars   # edit values
+   terraform init
+   terraform apply
+   ```
+4. If you push a different tag, update `container_image_tag` in `terraform.tfvars` and re-apply, or change the setting in the Function App.
+
+See `infrastructure/README.md` for details on what gets created.
+
 ### Dependencies overview
 
 Dependency | Description

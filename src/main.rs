@@ -11,7 +11,12 @@ async fn main() {
     }
     pretty_env_logger::init();
 
-    let db = schema::example_db();
+    let database_url =
+        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://restful.db".to_string());
+
+    let db = schema::init_pool(&database_url)
+        .await
+        .expect("Failed to initialize database");
 
     let api = routes::games_routes(db);
 
